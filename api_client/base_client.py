@@ -23,6 +23,7 @@ class BaseClient:
         self.config = config
         self.session = session or requests.Session()
         self.session.headers.update({"Accept": "application/json"})
+        self.history: list[requests.Response] = []
 
         retry = Retry(
             total=config.retries,
@@ -54,6 +55,7 @@ class BaseClient:
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         logger.info("%s %s -> %s (%.0f ms)", method.upper(), url, response.status_code, elapsed_ms)
+        self.history.append(response)
         return response
 
     def get(self, path: str, **kwargs) -> requests.Response:
