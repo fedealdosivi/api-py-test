@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    - cron: "0 3 * * *" # nightly regression run
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "Section of config/environments.ini to run against (empty = [DEFAULT])"
+        required: false
+        default: ""
+      markers:
+        description: "Marker expression for the API tests, e.g. smoke or regression"
+        required: false
+        default: "smoke"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  framework:
+    name: Framework self-tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pytest -m framework
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: framework-reports-py${{ matrix.python-version }}
+          path: reports/
+
+  api-tests:
+    name: API tests
+    needs: framework
+    runs-on: ubuntu-latest
+    env:
+      # Optional: set API_BASE_URL under Settings > Secrets and variables > Actions > Variables
+      # to point CI at your API without editing config/environments.ini.
+      API_BASE_URL: ${{ vars.API_BASE_URL }}
+      ENV_NAME: ${{ inputs.env }}
+      MARKERS: ${{ github.event_name == 'schedule' && 'regression' || inputs.markers || 'smoke' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run API tests
+        run: |
+          [ -z "$API_BASE_URL" ] && unset API_BASE_URL
+          args=(-m "($MARKERS) and not framework")
+          [ -n "$ENV_NAME" ] && args+=(--env "$ENV_NAME")
+          # Exit code 5 means no tests matched, which is expected until an API is added.
+          pytest "${args[@]}" || [ $? -eq 5 ]
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-test-reports
+          path: |
+            reports/
+            logs/
