@@ -11,6 +11,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from api_client.request_builder import ApiRequest
 from config.config import Config
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,15 @@ class BaseClient:
         logger.info("%s %s -> %s (%.0f ms)", method.upper(), url, response.status_code, elapsed_ms)
         self.history.append(response)
         return response
+
+    def send(self, api_request: ApiRequest) -> requests.Response:
+        return self.request(
+            api_request.method,
+            api_request.path,
+            headers=dict(api_request.headers),
+            params=dict(api_request.params),
+            json=api_request.body,
+        )
 
     def get(self, path: str, **kwargs) -> requests.Response:
         return self.request("GET", path, **kwargs)

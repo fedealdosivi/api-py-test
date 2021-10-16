@@ -1,4 +1,10 @@
-"""Checks that reports are produced and that failing tests carry their API calls."""
+"""Checks that reports are produced and that failing tests carry their API calls.
+
+Some tests here run a small pytest session in a separate process and temporary folder, with a test
+that fails on purpose, and then assert on that failure. The inner session's output
+(including its FAILED line) shows up as captured output of the outer test, which
+passes because the failure was detected and reported correctly.
+"""
 
 from pathlib import Path
 
@@ -14,7 +20,7 @@ import os
 import responses
 
 @responses.activate
-def test_user_lookup(client):
+def test_fails_on_purpose_to_exercise_reporting(client):
     responses.get("https://api.example.com/users/1", json={"error": "not found"}, status=404)
     client.set_token(os.environ["SAMPLE_TOKEN"])
 
@@ -35,7 +41,7 @@ def project(pytester, monkeypatch):
 def test_html_and_junit_reports_are_written(project):
     project.makepyfile("def test_ok(): pass")
 
-    project.runpytest().assert_outcomes(passed=1)
+    project.runpytest_subprocess().assert_outcomes(passed=1)
 
     junit = (project.path / "reports" / "junit.xml").read_text()
     assert (project.path / "reports" / "report.html").exists()
@@ -45,7 +51,7 @@ def test_html_and_junit_reports_are_written(project):
 def test_failed_test_shows_its_api_calls(project):
     project.makepyfile(FAILING_API_TEST)
 
-    result = project.runpytest()
+    result = project.runpytest_subprocess()
 
     result.assert_outcomes(failed=1)
     result.stdout.fnmatch_lines(["*API calls*", "#1 GET https://api.example.com/users/1 -> 404*"])
@@ -56,7 +62,7 @@ def test_failed_test_shows_its_api_calls(project):
 def test_tokens_are_masked_in_reports(project):
     project.makepyfile(FAILING_API_TEST)
 
-    result = project.runpytest()
+    result = project.runpytest_subprocess()
 
     assert "secret-token" not in result.stdout.str()
     assert "secret-token" not in (project.path / "reports" / "junit.xml").read_text()
