@@ -3,3 +3,4 @@ requests>=2.31
 python-dotenv>=1.0
 responses>=0.25
 pytest-html>=4.1
+jsonschema>=4.18

@@ -30,8 +30,9 @@ def test_fails_on_purpose_to_exercise_reporting(client):
 
 @pytest.fixture
 def project(pytester, monkeypatch):
-    for key in ("API_ENV", "API_BASE_URL"):
-        monkeypatch.delenv(key, raising=False)
+    monkeypatch.delenv("API_ENV", raising=False)
+    # Pin the URL so these tests don't depend on what environments.ini points at.
+    monkeypatch.setenv("API_BASE_URL", "https://api.example.com")
     monkeypatch.setenv("SAMPLE_TOKEN", "secret-token")
     pytester.makeconftest((ROOT / "tests" / "conftest.py").read_text())
     pytester.makeini((ROOT / "pytest.ini").read_text().replace("pythonpath = .", f"pythonpath = {ROOT}"))

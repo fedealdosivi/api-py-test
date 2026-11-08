@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Salon",
+  "type": "object",
+  "required": ["id", "name", "slug", "location", "category_id", "price_range", "rating", "review_count", "is_active", "is_verified"],
+  "properties": {
+    "id": {"type": "integer", "minimum": 1},
+    "name": {"type": "string", "minLength": 1},
+    "slug": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+    "description": {"type": "string"},
+    "location": {
+      "type": "object",
+      "required": ["address", "city", "geo_point"],
+      "properties": {
+        "address": {"type": "string"},
+        "city": {"type": "string"},
+        "geo_point": {
+          "type": "object",
+          "required": ["lat", "lon"],
+          "properties": {
+            "lat": {"type": "number", "minimum": -90, "maximum": 90},
+            "lon": {"type": "number", "minimum": -180, "maximum": 180}
+          }
+        }
+      }
+    },
+    "contact": {"type": "object"},
+    "category_id": {"type": "integer", "minimum": 1},
+    "category": {"type": "object", "required": ["id", "name"]},
+    "price_range": {"type": "integer", "minimum": 1, "maximum": 4},
+    "rating": {"type": "number", "minimum": 0, "maximum": 5},
+    "review_count": {"type": "integer", "minimum": 0},
+    "is_active": {"type": "boolean"},
+    "is_verified": {"type": "boolean"},
+    "services": {"type": ["array", "null"]},
+    "amenities": {"type": ["array", "null"]},
+    "operating_hours": {"type": ["array", "null"]}
+  }
+}

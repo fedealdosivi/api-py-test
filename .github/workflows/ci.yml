@@ -5,25 +5,29 @@ on:
     branches: [main, master]
   pull_request:
   schedule:
-    - cron: "0 3 * * *" # nightly regression run
+    - cron: "0 3 * * *" 
+  repository_dispatch:
+    types: [beauty-salons-push]
   workflow_dispatch:
     inputs:
-      env:
-        description: "Section of config/environments.ini to run against (empty = [DEFAULT])"
+      api_ref:
+        description: "beauty-salons branch, tag or commit to test"
+        required: false
+        default: "main"
+      markers:
+        description: "Marker expression for the API tests, e.g. smoke (empty = all)"
         required: false
         default: ""
-      markers:
-        description: "Marker expression for the API tests, e.g. smoke or regression"
-        required: false
-        default: "smoke"
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   framework:
     name: Framework self-tests (Python ${{ matrix.python-version }})
+    # A push to beauty-salons can't break the framework, so skip the matrix for it.
+    if: github.event_name != 'repository_dispatch'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -44,29 +48,64 @@ jobs:
           path: reports/
 
   api-tests:
-    name: API tests
+    name: beauty-salons API tests
     needs: framework
+    # Run after the framework passes, or straight away when framework was skipped.
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     env:
-      # Optional: set API_BASE_URL under Settings > Secrets and variables > Actions > Variables
-      # to point CI at your API without editing config/environments.ini.
-      API_BASE_URL: ${{ vars.API_BASE_URL }}
-      ENV_NAME: ${{ inputs.env }}
-      MARKERS: ${{ github.event_name == 'schedule' && 'regression' || inputs.markers || 'smoke' }}
+      API_REF: ${{ github.event.client_payload.sha || inputs.api_ref || 'main' }}
+      MARKERS: ${{ inputs.markers }}
+      API_BASE_URL: http://localhost:8080
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check out beauty-salons
+        uses: actions/checkout@v4
+        with:
+          repository: fedealdosivi/beauty-salons
+          ref: ${{ env.API_REF }}
+          path: beauty-salons
+
+      # The API repo owns its infrastructure: Postgres loads migrations/ (schema + seed
+      # data) on first start, so the tests always run against the seed in that commit.
+      - name: Start Postgres and Elasticsearch
+        run: docker compose -f beauty-salons/docker-compose.yml up -d --wait --wait-timeout 300 postgres elasticsearch
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: beauty-salons/go.mod
+          cache-dependency-path: beauty-salons/go.sum
+
+      - name: Build and start the API
+        env:
+          DATABASE_URL: postgres://beauty:beauty123@localhost:5432/beauty_salons?sslmode=disable
+          ELASTICSEARCH_URL: http://localhost:9200
+          PORT: "8080"
+          GIN_MODE: release
+        run: |
+          (cd beauty-salons && go build -o ../beauty-salons-api ./cmd/api)
+          nohup ./beauty-salons-api > api.log 2>&1 &
+          curl -sf --retry 30 --retry-connrefused --retry-delay 1 "$API_BASE_URL/health"
+
+      - name: Sync Postgres to Elasticsearch
+        run: curl -sf -X POST "$API_BASE_URL/api/v1/admin/sync"
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
+
       - name: Run API tests
         run: |
-          [ -z "$API_BASE_URL" ] && unset API_BASE_URL
-          args=(-m "($MARKERS) and not framework")
-          [ -n "$ENV_NAME" ] && args+=(--env "$ENV_NAME")
-          # Exit code 5 means no tests matched, which is expected until an API is added.
-          pytest "${args[@]}" || [ $? -eq 5 ]
+          echo "Testing beauty-salons @ $(git -C beauty-salons rev-parse --short HEAD) ($API_REF)" >> "$GITHUB_STEP_SUMMARY"
+          pytest -m "${MARKERS:+($MARKERS) and }not framework"
+
+      - name: Show API log
+        if: failure()
+        run: cat api.log
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -74,3 +113,4 @@ jobs:
           path: |
             reports/
             logs/
+            api.log

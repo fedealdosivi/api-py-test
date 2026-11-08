@@ -1,0 +1,21 @@
+[
+  {"id": "no-filters", "params": {}, "total": 15},
+  {"id": "by-city", "params": {"city": "Mar del Plata"}, "total": 15},
+  {"id": "unknown-city", "params": {"city": "Buenos Aires"}, "total": 0},
+  {"id": "by-category", "params": {"category": 2}, "total": 3},
+  {"id": "by-price-range", "params": {"price_range": 3}, "total": 6},
+  {"id": "min-rating", "params": {"min_rating": 4.5}, "total": 11},
+  {"id": "verified-only", "params": {"verified": "true"}, "total": 13},
+  {"id": "within-2km", "params": {"lat": -38.0, "lon": -57.55, "radius": 2}, "total": 13},
+  {"id": "text-with-accent", "params": {"q": "Barbería"}, "total": 3},
+  {"id": "text-spa", "params": {"q": "spa"}, "total": 2},
+  {"id": "text-no-match", "params": {"q": "zzzz"}, "total": 0},
+  {
+    "id": "text-without-accent",
+    "params": {
+      "q": "barberia"
+    },
+    "total": 3,
+    "known_bug": "Search is accent-sensitive: 'barberia' finds nothing while 'Barbería' finds 3. spanish_analyzer runs spanish_stemmer before asciifolding (internal/search/elasticsearch.go:88), so 'barbería' is indexed as 'barb' and 'barberia' is searched as 'barberi'."
+  }
+]

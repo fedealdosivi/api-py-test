@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SearchResponse",
+  "type": "object",
+  "required": ["results", "total", "page", "page_size", "total_pages", "source"],
+  "properties": {
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["salon"],
+        "properties": {
+          "salon": {"$ref": "salon.json"},
+          "score": {"type": "number"},
+          "distance_km": {"type": ["number", "null"], "minimum": 0},
+          "highlights": {"type": "object"}
+        }
+      }
+    },
+    "total": {"type": "integer", "minimum": 0},
+    "page": {"type": "integer", "minimum": 1},
+    "page_size": {"type": "integer", "minimum": 1},
+    "total_pages": {"type": "integer", "minimum": 0},
+    "query": {"type": "string"},
+    "source": {"type": "string"}
+  }
+}
